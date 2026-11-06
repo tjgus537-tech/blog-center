@@ -1,6 +1,6 @@
 import { state, $, api, route, navigate, render, ICON } from './core.js';
-import { overviewPage, writerPage, imagePage, draftPage, publishPage, perfPage, reportPage, briefPage, manuscriptPage, clientsPage, clientDetailPage, keywordsPage, blogsPage, settingsPage, ordersPage } from './admin.js';
-import { myPage, myCapturesPage, orderPage, myOrdersPage, businessPage } from './client.js';
+import { overviewPage, writerPage, imagePage, draftPage, publishPage, perfPage, reportPage, briefPage, manuscriptPage, clientsPage, clientDetailPage, keywordsPage, blogsPage, settingsPage, ordersPage, creditsAdminPage } from './admin.js';
+import { myPage, myCapturesPage, orderPage, myOrdersPage, businessPage, creditsPage } from './client.js';
 
 const brand = `<div class="brand"><span class="brand-mark">${ICON.logo}</span><span><div class="brand-name">블로그 발행센터</div><div class="brand-sub">TAMBLE</div></span></div>`;
 
@@ -52,5 +52,7 @@ route('/my', myPage);
 route('/my/order', orderPage);
 route('/my/orders', myOrdersPage);
 route('/my/business', businessPage);
+route('/my/credits', creditsPage);
+route('/admin/credits', creditsAdminPage, { admin: true });
 route('/my/captures', myCapturesPage);
 render();

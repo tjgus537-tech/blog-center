@@ -108,8 +108,8 @@ export async function orderPage() {
     const lock = left <= 0;
     const B = bizOf();
     main.innerHTML = `<div class="page-head"><h1>접수하기</h1></div>
-      <div class="credit-bar"><span>발행권<b>${fmt.n(info.credit.total)}건</b></span><span>발행 완료<b>${fmt.n(info.credit.done)}건</b></span><span>진행 중<b>${fmt.n(info.credit.wip)}건</b></span><span>남은 발행권<b>${fmt.n(left)}건</b></span></div>
-      ${lock ? '<div class="notice warn">남은 발행권이 없어요. 담당자에게 추가 발행권을 요청해 주세요.</div>' : ''}
+      <div class="credit-bar"><span>발행권<b>${fmt.n(info.credit.total)}건</b></span><span>발행 완료<b>${fmt.n(info.credit.done)}건</b></span><span>진행 중<b>${fmt.n(info.credit.wip)}건</b></span><span>남은 발행권<b>${fmt.n(left)}건</b></span><span style="margin-left:auto"><button class="link-btn" data-href="/my/credits">충전 신청 ›</button></span></div>
+      ${lock ? '<div class="notice warn">남은 발행권이 없어요. <button class="link-btn" data-href="/my/credits">발행권 충전 신청하기 ›</button></div>' : ''}
       <div class="form-top"><span id="saved">${savedAt ? '자동 저장됨 ' + fmt.hm(savedAt) : '입력하면 자동으로 저장돼요'}</span><button class="link-btn" id="reset">처음부터 다시</button></div>
       <fieldset class="lock" ${lock ? 'disabled' : ''}><form id="of" autocomplete="off">
       <div class="q-card"><div class="q-num">1 / 7</div><h2 class="q-title">어떤 업체로 발행할까요?</h2><p class="q-desc">업체 정보에 등록한 업체 중에서 골라주세요. 그 업체 정보와 가이드로 글을 써요.</p>
@@ -214,5 +214,34 @@ export async function myOrdersPage() {
   main.innerHTML = `<div class="page-head"><h1>접수 내역</h1><button class="btn primary" data-href="/my/order">${ICON.plus} 접수하기</button></div>
     ${orders.length ? orders.map((o) => `<div class="card"><div class="card-head"><div><h2>#${o.id} · ${esc(o.client)} · 블로그 ${o.count}건</h2><div class="meta">${fmt.full(o.created_at)} 접수 · ${esc(o.data.body_mode === '작성한 원고 그대로' ? '직접 쓴 원고' : o.data.body_mode === '가이드라인만' ? '가이드라인 전달' : '원고 작성 맡김')}${o.data.files?.length ? ` · 사진 ${o.data.files.length}장` : ''}${o.data.pub_mode ? ` · 발행 희망 ${esc(o.data.pub_date || '')} ${o.data.pub_mode !== '무작위' ? esc(o.data.pub_time || '') : ''}` : ''}</div></div><span class="tag ${o.status === '반려' ? 'red' : allDone(o) ? 'green' : 'blue'}">${o.status === '반려' ? '반려' : allDone(o) ? '모두 발행' : `${o.items.filter((i) => i.status === '발행완료').length} / ${o.count} 발행`}</span></div>
       <table class="tbl"><thead><tr><th>메인 키워드</th><th>제목</th><th>진행</th><th>발행</th></tr></thead><tbody>${o.items.map((i) => { const [l, c] = C_STATUS[i.status] || [i.status, 'gray']; return `<tr><td><span class="kw-chip">#${esc(i.keyword1)}</span></td><td class="title-cell">${esc(i.title || '(작성 전)')}</td><td><span class="tag ${c}">${l}</span></td><td>${i.url ? `<a href="${esc(i.url)}" target="_blank" rel="noopener">글 보기</a>` : i.planned_at ? `<span class="meta">${fmt.dt(i.planned_at)} 예정</span>` : '<span class="faint">-</span>'}</td></tr>`; }).join('')}</tbody></table></div>`).join('') : '<div class="card empty"><h3>아직 접수한 글이 없어요</h3><p><button class="btn primary mt12" data-href="/my/order">접수하러 가기</button></p></div>'}`;
+  await clientPicker(main);
+}
+
+// ================= 발행권 충전 신청 =================
+const REQ_TAG = { 대기: ['승인 대기', 'orange'], 승인: ['승인 완료', 'green'], 반려: ['반려', 'red'] };
+export async function creditsPage() {
+  const main = layout({ crumbs: ['발행권 충전'] });
+  const r = await api('/my/credits' + qs());
+  const c = r.credit;
+  main.innerHTML = `<div class="page-head"><h1>발행권 충전</h1></div>
+    <div class="credit-bar"><span>총 발행권<b>${fmt.n(c.total)}건</b></span><span>발행 완료<b>${fmt.n(c.done)}건</b></span><span>진행 중<b>${fmt.n(c.wip)}건</b></span><span>남은 발행권<b>${fmt.n(c.left)}건</b></span></div>
+    ${r.preview ? '<div class="notice">관리자 미리보기에서는 신청할 수 없어요. 광고주 계정으로 로그인하면 신청돼요.</div>' : ''}
+    <form class="q-card" id="cf"><h2 class="q-title">충전 신청</h2><p class="q-desc">입금 후 신청하시면 담당자가 입금을 확인하고 승인해요. 승인되면 바로 발행권이 늘어나요.</p>
+      <div class="q-body">
+        <div><div class="f-label">몇 건 충전할까요?</div><div class="row">${[10, 30, 50, 100].map((n) => `<button type="button" class="btn sm" data-amt="${n}">${n}건</button>`).join('')}<input class="input" type="number" name="amount" min="1" max="1000" placeholder="직접 입력" style="max-width:160px"></div></div>
+        <div class="f-half-wrap"><div><div class="f-label">입금자명 <span class="req">(필수)</span></div><input class="input" name="depositor" placeholder="통장에 찍힌 이름"></div><div><div class="f-label">메모 <span class="req">(선택)</span></div><input class="input" name="memo" placeholder="예) 11월분, 세금계산서 필요"></div></div>
+        <div class="f-error" id="err"></div>
+        <div><button class="btn primary lg" ${r.preview ? 'disabled' : ''}>충전 신청하기</button></div>
+      </div></form>
+    <div class="card"><div class="card-head"><h2>신청 내역</h2></div>${r.requests.length ? `<table class="tbl"><thead><tr><th>신청일</th><th class="num">신청</th><th>입금자</th><th>상태</th><th class="num">승인</th><th>담당자 메모</th></tr></thead><tbody>${r.requests.map((x) => { const [l, t] = REQ_TAG[x.status] || [x.status, 'gray']; return `<tr><td class="nowrap">${fmt.dt(x.created_at)}</td><td class="num"><b>${fmt.n(x.amount)}건</b></td><td>${esc(x.depositor || '')}${x.memo ? `<div class="sub">${esc(x.memo)}</div>` : ''}</td><td><span class="tag ${t}">${l}</span>${x.decided_at ? `<div class="sub">${fmt.dt(x.decided_at)}</div>` : ''}</td><td class="num">${x.approved_amount != null ? fmt.n(x.approved_amount) + '건' : '-'}</td><td class="meta">${esc(x.admin_memo || '')}</td></tr>`; }).join('')}</tbody></table>` : '<p class="faint">아직 신청한 내역이 없어요.</p>'}</div>
+    <div class="card"><div class="card-head"><h2>발행권 변동 내역</h2></div>${r.logs.length ? `<table class="tbl"><thead><tr><th>일시</th><th>구분</th><th class="num">변동</th><th class="num">변동 후 총 발행권</th><th>메모</th></tr></thead><tbody>${r.logs.map((l) => `<tr><td class="nowrap">${fmt.dt(l.created_at)}</td><td>${esc(l.kind)}</td><td class="num"><b class="${l.delta > 0 ? 'success' : 'danger'}">${l.delta > 0 ? '+' : ''}${fmt.n(l.delta)}</b></td><td class="num">${fmt.n(l.total_after)}건</td><td class="meta">${esc(l.memo || '')}</td></tr>`).join('')}</tbody></table>` : '<p class="faint">변동 내역이 없어요.</p>'}</div>`;
+  const f = $('#cf');
+  $$('[data-amt]').forEach((b) => (b.onclick = () => { f.amount.value = b.dataset.amt; }));
+  f.onsubmit = async (e) => {
+    e.preventDefault();
+    const d = Object.fromEntries(new FormData(f));
+    try { await api('/my/credits' + qs(), { method: 'POST', body: d, quiet: true }); toast('충전 신청을 보냈어요. 승인되면 발행권이 늘어나요.'); creditsPage(); }
+    catch (err) { $('#err').textContent = err.message; }
+  };
   await clientPicker(main);
 }

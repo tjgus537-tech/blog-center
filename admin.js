@@ -440,6 +440,36 @@ export async function manuscriptPage({ params }) {
   bindRankButtons(main, reload);
 }
 
+// ================= 발행권 충전 승인 =================
+export async function adjustCredits(userId, name, after) {
+  const r = await modal({ title: `발행권 조정 · ${name}`, body: `<form><label class="label">더할 건수 (빼려면 -로)</label><input class="input" type="number" name="delta" placeholder="예) 20 또는 -5"><label class="label mt12">사유 (필수, 기록에 남아요)</label><input class="input" name="memo" placeholder="예) 계약 연장 서비스, 오발행 환불"></form>`, actions: [{ label: '취소' }, { label: '조정하기', primary: true, value: 'ok', onClick: async (root) => { const x = await api(`/users/${userId}/credits`, { method: 'POST', body: formData(root) }); toast(`총 ${x.total}건으로 조정했어요.`); } }] });
+  if (r) after?.();
+}
+export async function creditsAdminPage() {
+  const main = await page(['충전 승인']);
+  const [{ requests }, { logs }, { accounts }] = await Promise.all([api('/credits/requests'), api('/credits/logs'), api('/credits/accounts')]);
+  const pend = requests.filter((r) => r.status === '대기'), done = requests.filter((r) => r.status !== '대기');
+  main.innerHTML = `<div class="page-head"><h1>충전 승인</h1></div>
+    <p class="page-desc">광고주가 충전 신청을 보내면 여기에 쌓여요. 입금을 확인하고 승인하면 그 계정의 발행권이 바로 늘어나요.</p>
+    <div class="card"><div class="card-head"><h2>승인 대기 <span class="faint">${pend.length}</span></h2></div>
+      ${pend.length ? `<table class="tbl"><thead><tr><th>신청일</th><th>광고주 계정</th><th>입금자</th><th class="num">신청</th><th class="num">현재 총 발행권</th><th style="width:110px">승인 건수</th><th></th></tr></thead><tbody>${pend.map((r) => `<tr><td class="nowrap">${fmt.dt(r.created_at)}</td><td><b>${esc(r.login_id)}</b> <span class="meta">${esc(r.user_name || '')}</span><div class="sub">${esc(r.businesses.join(', '))}</div></td><td>${esc(r.depositor || '')}${r.memo ? `<div class="sub">${esc(r.memo)}</div>` : ''}</td><td class="num"><b>${fmt.n(r.amount)}건</b></td><td class="num">${fmt.n(r.total)}건</td><td><input class="input sm" type="number" min="1" value="${r.amount}" data-amt="${r.id}"></td><td class="nowrap"><button class="btn sm primary" data-ok="${r.id}">승인</button> <button class="btn sm danger" data-no="${r.id}">반려</button></td></tr>`).join('')}</tbody></table>` : '<p class="faint">대기 중인 신청이 없어요.</p>'}</div>
+    <div class="grid2">
+      <div class="card"><div class="card-head"><h2>계정별 발행권</h2></div>${accounts.length ? `<table class="tbl"><thead><tr><th>계정</th><th class="num">총 발행권</th><th></th></tr></thead><tbody>${accounts.map((a) => `<tr><td><b>${esc(a.login_id)}</b> <span class="meta">${esc(a.name || '')}</span><div class="sub">${esc(a.businesses.join(', '))}</div></td><td class="num">${fmt.n(a.total)}건</td><td><button class="btn sm" data-adj="${a.id}" data-name="${esc(a.login_id)}">조정</button></td></tr>`).join('')}</tbody></table>` : '<p class="faint">광고주 계정이 없어요.</p>'}</div>
+      <div class="card"><div class="card-head"><h2>최근 처리한 신청</h2></div>${done.length ? `<table class="tbl"><tbody>${done.slice(0, 15).map((r) => `<tr><td class="nowrap meta">${fmt.dt(r.decided_at)}</td><td>${esc(r.login_id)}</td><td class="num">${fmt.n(r.amount)}건 신청</td><td>${r.status === '승인' ? `<span class="tag green">승인 +${fmt.n(r.approved_amount)}</span>` : '<span class="tag red">반려</span>'}<div class="sub">${esc(r.decided_by || '')}${r.admin_memo ? ' · ' + esc(r.admin_memo) : ''}</div></td></tr>`).join('')}</tbody></table>` : '<p class="faint">아직 없어요.</p>'}</div>
+    </div>
+    <div class="card"><div class="card-head"><h2>발행권 변동 기록</h2></div>${logs.length ? `<table class="tbl"><thead><tr><th>일시</th><th>계정</th><th>구분</th><th class="num">변동</th><th class="num">변동 후</th><th>사유</th><th>처리</th></tr></thead><tbody>${logs.map((l) => `<tr><td class="nowrap meta">${fmt.dt(l.created_at)}</td><td>${esc(l.login_id)}</td><td>${esc(l.kind)}</td><td class="num"><b class="${l.delta > 0 ? 'success' : 'danger'}">${l.delta > 0 ? '+' : ''}${fmt.n(l.delta)}</b></td><td class="num">${fmt.n(l.total_after)}건</td><td class="meta">${esc(l.memo || '')}</td><td class="meta">${esc(l.actor || '')}</td></tr>`).join('')}</tbody></table>` : '<p class="faint">기록이 없어요.</p>'}</div>`;
+  $$('[data-ok]', main).forEach((b) => (b.onclick = async () => {
+    const id = b.dataset.ok; const amt = $(`[data-amt="${id}"]`, main).value;
+    if (!(await confirmBox('충전 승인', `입금을 확인하셨나요? 발행권 <b>${esc(amt)}건</b>을 더해요.`, '승인'))) return;
+    const x = await api(`/credits/requests/${id}/approve`, { method: 'POST', body: { amount: amt } }); toast(`승인했어요. 총 발행권 ${x.total}건`); creditsAdminPage();
+  }));
+  $$('[data-no]', main).forEach((b) => (b.onclick = async () => {
+    const r = await modal({ title: '충전 반려', body: '<form><label class="label">반려 사유 (광고주에게 보여요)</label><input class="input" name="admin_memo" placeholder="예) 입금 확인이 안 돼요"></form>', actions: [{ label: '취소' }, { label: '반려', danger: true, value: 'ok', onClick: async (root) => { await api(`/credits/requests/${b.dataset.no}/reject`, { method: 'POST', body: formData(root) }); } }] });
+    if (r) creditsAdminPage();
+  }));
+  $$('[data-adj]', main).forEach((b) => (b.onclick = () => adjustCredits(b.dataset.adj, b.dataset.name, creditsAdminPage)));
+}
+
 // ================= 광고주 접수 관리 =================
 export async function ordersPage() {
   const main = await page(['광고주 접수']);
@@ -512,12 +542,12 @@ export async function clientDetailPage({ params }) {
           <label class="row mt8"><input type="checkbox" name="report_on" ${c.report_on ? 'checked' : ''}> 발행 시 알림톡 보고</label>
           <button class="btn sm primary mt12">저장</button></form>
         <div class="card tight"><h3>키워드 ${keywords.length}</h3><div class="chips">${keywords.map((k) => `<span class="chip">${esc(k.keyword)}</span>`).join('')}</div><button class="btn ghost sm mt8" data-href="/admin/keywords">키워드 관리 ›</button></div>
-        <div class="card tight"><h3>광고주 ERP 계정</h3>${accounts.map((a) => `<div class="row between mt8"><div><b>${esc(a.login_id)}</b> <span class="meta">${esc(a.name || '')} · 업체 ${a.businesses}개</span></div><div class="row"><input class="input sm" type="number" style="width:90px" data-credit="${a.id}" value="${a.credits ?? ''}" placeholder="업체별"><span class="meta">건 발행권</span></div></div>`).join('') || '<p class="faint">없음</p>'}<p class="meta">발행권은 계정 단위예요. 비워두면 업체별 계약 건수 합을 써요.</p><button class="btn sm mt8" id="acc">계정 만들기</button></div>
+        <div class="card tight"><h3>광고주 ERP 계정</h3>${accounts.map((a) => `<div class="row between mt8"><div><b>${esc(a.login_id)}</b> <span class="meta">${esc(a.name || '')} · 업체 ${a.businesses}개</span></div><div class="row"><span class="meta">발행권 ${a.credits ?? '계약 건수 합'}${a.credits != null ? '건' : ''}</span><button class="btn sm" data-adj="${a.id}" data-name="${esc(a.login_id)}">조정</button></div></div>`).join('') || '<p class="faint">없음</p>'}<p class="meta">발행권은 계정 단위예요. 광고주가 충전 신청하면 <a href="#/admin/credits">충전 승인</a>에서 승인해요.</p><button class="btn sm mt8" id="acc">계정 만들기</button></div>
       </div></div>`;
   const save = async (extra) => { await api(`/clients/${c.id}`, { method: 'PUT', body: extra }); toast('저장했어요.'); };
   $('#cf').onsubmit = async (e) => { e.preventDefault(); const guide = {}; for (const [k, v] of new FormData(e.target)) guide[k.slice(2)] = v; await save({ guide }); };
   $('#bf').onsubmit = async (e) => { e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); d.report_on = e.target.report_on.checked; await save(d); clientDetailPage({ params }); };
-  $$('[data-credit]').forEach((inp) => (inp.onchange = async () => { await api(`/users/${inp.dataset.credit}`, { method: 'PUT', body: { credits: inp.value } }); toast('발행권을 저장했어요.'); }));
+  $$('[data-adj]').forEach((b) => (b.onclick = () => adjustCredits(b.dataset.adj, b.dataset.name, () => clientDetailPage({ params }))));
   $('#acc').onclick = async () => { const r = await modal({ title: '광고주 ERP 계정 만들기', body: '<form><label class="label">아이디</label><input class="input" name="login_id"><label class="label mt12">비밀번호 (8자 이상)</label><input class="input" name="password" type="text"><label class="label mt12">담당자 이름</label><input class="input" name="name"></form>', actions: [{ label: '취소' }, { label: '만들기', primary: true, value: 'ok', onClick: async (root) => { await api(`/clients/${c.id}/account`, { method: 'POST', body: formData(root) }); } }] }); if (r) clientDetailPage({ params }); };
 }
 

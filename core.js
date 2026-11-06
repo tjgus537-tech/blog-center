@@ -78,6 +78,7 @@ const sv = (d, extra = '') => `<svg viewBox="0 0 24 24" width="18" height="18" f
 export const ICON = {
   logo: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg>',
   home: sv('<path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z"/>'),
+  ticket: sv('<path d="M4 7a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v3a2 2 0 0 0 0 4v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3a2 2 0 0 0 0-4z"/><path d="M14 6v12" stroke-dasharray="2 2"/>'),
   inbox: sv('<path d="M4 13h4l2 3h4l2-3h4"/><path d="M5 5h14l1 8v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-5z"/>'),
   building: sv('<rect x="5" y="3" width="14" height="18" rx="1.5"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2M10 21v-3h4v3"/>'),
   key: sv('<circle cx="8" cy="15" r="4"/><path d="m11 12 8-8M16 7l2 2M14 9l2 2"/>'),
@@ -165,6 +166,7 @@ export const TEAM_NAV = [
 const ADMIN_NAV = [
   { path: '/admin', label: '전체 현황', icon: 'home', exact: true },
   { path: '/admin/orders', label: '광고주 접수', icon: 'inbox' },
+  { path: '/admin/credits', label: '충전 승인', icon: 'ticket', countKey: 'credits' },
   { group: '7개 팀' },
   ...TEAM_NAV.map((t) => ({ ...t, team: true })),
   { group: '기준 정보' },
@@ -181,6 +183,7 @@ const CLIENT_NAV = [
   { path: '/my/orders', label: '접수 내역', icon: 'inbox' },
   { path: '/my', label: '발행 현황', icon: 'chart', exact: true },
   { path: '/my/captures', label: '노출 캡쳐', icon: 'camera' },
+  { path: '/my/credits', label: '발행권 충전', icon: 'ticket' },
   { path: '/my/business', label: '업체 정보', icon: 'building' }
 ];
 
@@ -200,7 +203,7 @@ export function layout({ crumbs = [], wide = false }) {
       </a>
       <nav class="nav">
         ${nav.map((n) => n.group ? `<div class="nav-group">${esc(n.group)}</div>`
-          : `<button data-href="${n.path}" class="${activeOf(n) ? 'active' : ''}">${n.team ? `<span class="team-no">${n.no}</span>` : ICON[n.icon]}<span>${esc(n.label)}</span>${n.team && state.team[n.key] ? `<span class="cnt">${state.team[n.key]}</span>` : ''}</button>`).join('')}
+          : `<button data-href="${n.path}" class="${activeOf(n) ? 'active' : ''}">${n.team ? `<span class="team-no">${n.no}</span>` : ICON[n.icon]}<span>${esc(n.label)}</span>${n.team && state.team[n.key] ? `<span class="cnt">${state.team[n.key]}</span>` : ''}${n.countKey && state.team[n.countKey] ? `<span class="badge">${state.team[n.countKey]}</span>` : ''}</button>`).join('')}
       </nav>
       <div class="side-foot">
         <span class="avatar">${esc(initial)}</span>
